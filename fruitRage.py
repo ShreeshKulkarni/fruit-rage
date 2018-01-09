@@ -3,62 +3,6 @@ from string import ascii_uppercase
 from time import clock
 
 
-def pick_fruit_chain(node, row, col, fruit, pos_taken):
-    '''Recursively pick all connected fruits of position (row, col) from the board.
-
-    Args:
-        node : game tree node to pick connected fruits from
-        row, col : position on board to pick
-        fruit : fruit type (0 < fruit <= 9) to pick
-        pos_taken : dictionary that tracks positions already visited - helps to ensure creating unique child nodes
-    '''
-
-    # Base case - when recursion crosses board boundary
-    if row == -1 or col == -1 or row == n or col == n:
-        return
-    elif node.matrix[row][col] == fruit:
-        # Note cell as visited, pick fruit (mark cell as empty), update fruitsRemaining, tmp (fruits picked at node)
-        pos_taken[(row, col)] = 1
-        node.matrix[row][col] = '*'
-        node.fruitsRemaining -= 1
-        node.tmp += 1
-
-        # Recurse on connected positions - top, bottom, left, right
-        pick_fruit_chain(node, row-1, col, fruit, pos_taken)
-        pick_fruit_chain(node, row+1, col, fruit, pos_taken)
-        pick_fruit_chain(node, row, col-1, fruit, pos_taken)
-        pick_fruit_chain(node, row, col+1, fruit, pos_taken)
-
-
-def enforce_gravity(matrix):
-    '''Apply gravity to make fruits fall down into empty cells below them.'''
-
-    # Gravity is independent in different columns of matrix. So iterating on columns.
-    for col in range(n):
-        # i marks bottom most cell in col, j checks for fruits above i to fall down
-        i = n-1
-        j = i-1
-        while i >= 1:
-            # If (i, col) is empty, pull down a fruit from above if any
-            if matrix[i][col] == '*':
-                while j >= 0:
-                    if matrix[j][col] != '*':
-                        matrix[i][col] = matrix[j][col]
-                        matrix[j][col] = '*'
-                        # This empty cell filled now, go up to fix more stars
-                        i -= 1
-                        j -= 1
-                        break
-                    j -= 1
-                else:
-                    # All stars above first star (means entire col is empty), proceed to next col
-                    break
-            else:
-                # fruit found at (i, col), go up to see if there is a star
-                i -= 1
-                j = i-1
-
-
 def MAX_VALUE(current, a, b):
     '''Return the minimax value of current state.
 
@@ -75,17 +19,17 @@ def MAX_VALUE(current, a, b):
     global optimal
 
     # Sorting child nodes to increase pruning at the root level in a deeper tree, and bigger board (n > 5)
-    if current.depth == 0 and depth_limit >=3 and n > 5:
+    if current.depth == 0 and depth_limit >= 3 and n > 5:
 
         # print "sorting max...................", current.depth
-        successorsList = get_successors(current)
+        successorsList = current.get_successors()
         # sort the list of successor nodes in descending order of tmp value
         successorsList.sort(key=lambda x: x.tmp, reverse=True)
 
         # Continue expanding successors (minimizing entities)
         for succNode in successorsList:
             temp = MIN_VALUE(succNode, a, b)
-            a = max(a,temp)
+            a = max(a, temp)
 
             # Update optimal minimax value obtained at root level
             if current.depth == 0:
@@ -101,7 +45,7 @@ def MAX_VALUE(current, a, b):
 
     else:
         # Expand successors on-the-go
-        for succNode in get_successors_generator(current):
+        for succNode in current.get_successors_generator():
             temp = MIN_VALUE(succNode, a, b)
             a = max(a, temp)
             # Update optimal minimax value obtained at root level
@@ -134,7 +78,7 @@ def MIN_VALUE(current, a, b):
     if (current.depth == 1 and depth_limit >= 5 and n > 6 and n < 16) or \
             (current.depth == 1 and depth_limit >= 3 and n >= 16):
 
-        successorsList = get_successors(current)
+        successorsList = current.get_successors()
         successorsList.sort(key=lambda x: x.tmp, reverse=True)
 
         for succNode in successorsList:
@@ -147,115 +91,150 @@ def MIN_VALUE(current, a, b):
 
     else:
         # Expand successors on-the-go
-        for succNode in get_successors_generator(current):
+        for succNode in current.get_successors_generator():
             temp = MAX_VALUE(succNode, a, b)
-            b = min(b,temp)
+            b = min(b, temp)
             # Prune
             if b <= a:
                 return a
         return b
 
 
-def get_successors_generator(current):
-    '''Yield a child node of the current node.'''
-
-    # Scan the current board bottom to top
-    for i in range((n-1), -1, -1):
-        for j in range(n):
-            # Good to go if position (i,j) hasn't been considered yet and a fruit exists at (i,j)
-            if not current.taken.get((i,j), False) and current.matrix[i][j] != '*':
-
-                # Deepcopy is terribly slow! Build a child node manually 
-                newMat = []
-                for q in range(n):
-                    lst = []
-                    for r in range(n):
-                        lst.append(current.matrix[q][r])
-                    newMat.append(lst)
-
-                #newNode = node(deepcopy(current.matrix), current.depth+1, current.fruitsRemaining)
-                newNode = node(newMat, current.depth+1, current.fruitsRemaining)
-
-                newNode.max_score = current.max_score
-                newNode.min_score = current.min_score
-
-                newNode.move = (i,j)
-                #newNode.taken = {}
-                pick_fruit_chain(newNode, i, j, newNode.matrix[i][j], current.taken)
-
-                if current.depth % 2 == 0: #MAX is playing
-                    newNode.max_score += newNode.tmp ** 2
-
-                else:
-                    newNode.min_score -= newNode.tmp ** 2
-
-                newNode.tmp = 0
-
-                enforce_gravity(newNode.matrix)
-
-                yield newNode
-    current.taken = {}
-
-
-def get_successors(current):
-    '''Return a list of child nodes of the current node.'''
-
-    successors = []
-
-    # Scan the current board bottom to top
-    for i in range((n-1), -1, -1):
-        for j in range(n):
-            # Good to go if position (i,j) hasn't been considered yet and a fruit exists at (i,j)
-            if not current.taken.get((i,j), False) and current.matrix[i][j] != '*':
-
-                # Deepcopy is terribly slow! Build a child node manually
-                newMatrix = []
-                for newRow in range(n):
-                    lst = []
-                    for newCol in range(n):
-                        lst.append(current.matrix[newRow][newCol])
-                    newMatrix.append(lst)
-
-                newNode = node(newMatrix, current.depth+1, current.fruitsRemaining)
-                newNode.max_score = current.max_score
-                newNode.min_score = current.min_score
-
-                newNode.move = (i,j)
-
-                # Consume all the connected fruits
-                pick_fruit_chain(newNode, i, j, newNode.matrix[i][j], current.taken)
-
-                if current.depth % 2 == 0:      # MAX is playing
-                    newNode.max_score += newNode.tmp ** 2
-                else:                           # MIN is playing
-                    newNode.min_score -= newNode.tmp ** 2
-
-                # Apply gravity after consuming fruits
-                enforce_gravity(newNode.matrix)
-
-                successors.append(newNode)
-
-    # Clear the stored taken positions - saves memory
-    current.taken = {}
-    return successors
-
-
 class node:
-    '''Represents a node in the game playing tree.'''
+    '''Abstract a node in the game playing tree. Define necessary utility methods and generators.'''
 
-    def __init__(self, matrix, d, f):
+    def __init__(self, matrix, depth, fruits):
+        '''Constructs a game node.'''
+
         self.matrix = matrix            # The current state (board) of the node
-        self.depth = d                  # Depth of the node in the game tree
-        self.fruitsRemaining = f        # Number of fruits remaining on the board
+        self.depth = depth              # Depth of the node in the game tree
+        self.fruitsRemaining = fruits   # Number of fruits remaining on the board
         self.tmp = 0                    # Number of fruits picked after self.move alone
         self.max_score = 0              # MAX score for sub-tree rooted at this node
         self.min_score = 0              # MIN score for sub-tree rooted at this node
         self.taken = {}
         self.move = None                # Choice of picking a fruit from position (i, j) that created this node
 
+    def pick_fruit_chain(self, row, col, fruit, pos_taken):
+        '''Recursively pick all connected fruits of position (row, col) from the board.
+
+        Args:
+            row, col : position on board to pick
+            fruit : fruit type (0 < fruit <= 9) to pick
+            pos_taken : dictionary that tracks positions already visited - helps to ensure creating unique child nodes
+        '''
+
+        # Base case - when recursion crosses board boundary
+        if row == -1 or col == -1 or row == n or col == n:
+            return
+        elif self.matrix[row][col] == fruit:
+            # Note cell as visited, pick fruit (mark cell as empty), update fruitsRemaining, tmp (fruits picked at node)
+            pos_taken[(row, col)] = 1
+            self.matrix[row][col] = '*'
+            self.fruitsRemaining -= 1
+            self.tmp += 1
+
+            # Recurse on connected positions - top, bottom, left, right
+            self.pick_fruit_chain(row - 1, col, fruit, pos_taken)
+            self.pick_fruit_chain(row + 1, col, fruit, pos_taken)
+            self.pick_fruit_chain(row, col - 1, fruit, pos_taken)
+            self.pick_fruit_chain(row, col + 1, fruit, pos_taken)
+
+    def enforce_gravity(self):
+        '''Apply gravity to make fruits fall down into empty cells below them.'''
+
+        # Gravity is independent in different columns of matrix. So iterating on columns.
+        for col in range(n):
+            # i marks bottom most cell in col, j checks for fruits above i to fall down
+            i = n - 1
+            j = i - 1
+            while i >= 1:
+                # If (i, col) is empty, pull down a fruit from above if any
+                if self.matrix[i][col] == '*':
+                    while j >= 0:
+                        if self.matrix[j][col] != '*':
+                            self.matrix[i][col] = self.matrix[j][col]
+                            self.matrix[j][col] = '*'
+                            # This empty cell filled now, go up to fix more stars
+                            i -= 1
+                            j -= 1
+                            break
+                        j -= 1
+                    else:
+                        # All stars above first star (means entire col is empty), proceed to next col
+                        break
+                else:
+                    # fruit found at (i, col), go up to see if there is a star
+                    i -= 1
+                    j = i - 1
+
+    def make_move(self, i, j):
+        '''Apply move (i,j) on current node. Return resultant new child.'''
+
+        # Deepcopy is terribly slow! Build a child node manually
+        newMatrix = []
+        for newRow in range(n):
+            lst = []
+            for newCol in range(n):
+                lst.append(self.matrix[newRow][newCol])
+            newMatrix.append(lst)
+
+        newNode = node(newMatrix, self.depth + 1, self.fruitsRemaining)
+        newNode.max_score = self.max_score
+        newNode.min_score = self.min_score
+
+        newNode.move = (i, j)
+
+        # Consume all the connected fruits
+        newNode.pick_fruit_chain(i, j, newNode.matrix[i][j], self.taken)
+
+        # Update max_score or min_score based on player turn
+        if self.depth % 2 == 0:  # MAX is playing
+            newNode.max_score += newNode.tmp ** 2
+        else:                   # MIN is playing
+            newNode.min_score -= newNode.tmp ** 2
+
+        # Apply gravity after consuming fruits
+        newNode.enforce_gravity()
+
+        return newNode
+
+    def get_successors_generator(self):
+        '''Yield a child node of the current node.'''
+
+        # Scan the current board bottom to top
+        for i in range((n - 1), -1, -1):
+            for j in range(n):
+                # Good to go if position (i,j) hasn't been considered yet and a fruit exists at (i,j)
+                if not self.taken.get((i, j), False) and self.matrix[i][j] != '*':
+                    newNode = self.make_move(i, j)
+                    newNode.tmp = 0
+                    yield newNode
+        self.taken = {}
+
+    def get_successors(self):
+        '''Return a list of child nodes of the current node.'''
+
+        successors = []
+
+        # Scan the current board bottom to top
+        for i in range((n - 1), -1, -1):
+            for j in range(n):
+                # Good to go if position (i,j) hasn't been considered yet and a fruit exists at (i,j)
+                if not self.taken.get((i, j), False) and self.matrix[i][j] != '*':
+                    newNode = self.make_move(i, j)
+                    successors.append(newNode)
+
+        # Clear the stored taken positions - saves memory
+        self.taken = {}
+        return successors
+
+
 if __name__ == '__main__':
     # global n, p, t_remain, depth_limit, root, optimal
-    optimal = 0
+
+    # To store [optimal score, optimal move, resultant matrix after applying optimal move]
+    optimal = []
     # Note down program start time
     start = clock()
 
