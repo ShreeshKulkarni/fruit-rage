@@ -3,42 +3,59 @@ from string import ascii_uppercase
 from time import clock
 
 
-def pick_fruit_chain(node, row, col, fruit, d):
+def pick_fruit_chain(node, row, col, fruit, pos_taken):
+    '''Recursively pick all connected fruits of position (row, col) from the board.
 
+    Args:
+        node : game tree node to pick connected fruits from
+        row, col : position on board to pick
+        fruit : fruit type (0 < fruit <= 9) to pick
+        pos_taken : dictionary that tracks positions already visited - helps to ensure creating unique child nodes
+    '''
+
+    # Base case - when recursion crosses board boundary
     if row == -1 or col == -1 or row == n or col == n:
         return
     elif node.matrix[row][col] == fruit:
-        d[(row, col)] = 1
+        # Note cell as visited, pick fruit (mark cell as empty), update fruitsRemaining, tmp (fruits picked at node)
+        pos_taken[(row, col)] = 1
         node.matrix[row][col] = '*'
         node.fruitsRemaining -= 1
         node.tmp += 1
 
-        pick_fruit_chain(node,row-1,col,fruit,d)
-        pick_fruit_chain(node,row+1,col,fruit,d)
-        pick_fruit_chain(node,row,col-1,fruit,d)
-        pick_fruit_chain(node,row,col+1,fruit,d)
+        # Recurse on connected positions - top, bottom, left, right
+        pick_fruit_chain(node, row-1, col, fruit, pos_taken)
+        pick_fruit_chain(node, row+1, col, fruit, pos_taken)
+        pick_fruit_chain(node, row, col-1, fruit, pos_taken)
+        pick_fruit_chain(node, row, col+1, fruit, pos_taken)
 
 
 def enforce_gravity(matrix):
+    '''Apply gravity to make fruits fall down into empty cells below them.'''
+
+    # Gravity is independent in different columns of matrix. So iterating on columns.
     for col in range(n):
+        # i marks bottom most cell in col, j checks for fruits above i to fall down
         i = n-1
         j = i-1
         while i >= 1:
-
+            # If (i, col) is empty, pull down a fruit from above if any
             if matrix[i][col] == '*':
-
                 while j >= 0:
                     if matrix[j][col] != '*':
                         matrix[i][col] = matrix[j][col]
                         matrix[j][col] = '*'
-                        i -= 1              # this star fixed with fruit above, go up to fix more stars
+                        # This empty cell filled now, go up to fix more stars
+                        i -= 1
                         j -= 1
                         break
                     j -= 1
                 else:
-                    break   # all stars above first star, go to next col
+                    # All stars above first star (means entire col is empty), proceed to next col
+                    break
             else:
-                i -= 1       # fruit found, go up to see if there is a star
+                # fruit found at (i, col), go up to see if there is a star
+                i -= 1
                 j = i-1
 
 
@@ -230,7 +247,7 @@ class node:
         self.matrix = matrix            # The current state (board) of the node
         self.depth = d                  # Depth of the node in the game tree
         self.fruitsRemaining = f        # Number of fruits remaining on the board
-        self.tmp = 0                    # Minimax value for sub-tree rooted at this node
+        self.tmp = 0                    # Number of fruits picked after self.move alone
         self.max_score = 0              # MAX score for sub-tree rooted at this node
         self.min_score = 0              # MIN score for sub-tree rooted at this node
         self.taken = {}
