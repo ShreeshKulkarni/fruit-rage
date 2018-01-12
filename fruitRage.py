@@ -104,7 +104,7 @@ class node:
     '''Abstract a node in the game playing tree. Define necessary utility methods and generators.'''
 
     def __init__(self, matrix, depth, fruits):
-        '''Constructs a game node.'''
+        '''Construct a game node.'''
 
         self.matrix = matrix            # The current state (board) of the node
         self.depth = depth              # Depth of the node in the game tree
